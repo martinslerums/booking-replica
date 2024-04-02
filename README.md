@@ -36,3 +36,9 @@ npm run dev
 
 Deployment
 This project is deployed on Vercel. You can view the live demo [here](https://booking-replica-wheat.vercel.app/).
+
+https://github.com/martinslerums/booking-replica/assets/68188509/912a978d-320e-4400-9e6e-e79a968e5b61
+
+
+
+
