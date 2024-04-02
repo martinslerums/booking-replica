@@ -38,12 +38,12 @@ const SearchPage = async ({ searchParams }: SearchPageProps) => {
 
         <hr className="mb-5" />
 
-        <h3 className="font-semibold text-xl">
+        {/* <h3 className="font-semibold text-xl">
           {results.content.total_listings}
-        </h3>
+        </h3> */}
 
         <div className="space-y-2 mt-5">
-          {results.content.listings.map((item, index) => (
+          {results.map((item, index) => (
             <div
               key={index}
               className="flex space-y-2 justify-between space-x-4 p-5 border rounded-lg"
@@ -57,7 +57,7 @@ const SearchPage = async ({ searchParams }: SearchPageProps) => {
                   >
                     {item.title}
                   </Link>
-                  <p className="text-sm">{item.description}</p>
+                  <p className="text-sm">{item.location}</p>
                 </div>
                 <div className="flex flex-col justify-between">
                   <div className="flex items-start justify-end space-x-2 text-right">

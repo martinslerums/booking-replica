@@ -1,152 +1,47 @@
 import { searchParams } from "@/app/search/page";
-import { Result } from "@/typings";
+import { Listing, Result } from "@/typings";
+import { Browser } from "puppeteer";
+const puppeteer = require("puppeteer");
+const cheerio = require("cheerio");
+
+const wait = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
 export const fetchResults = async (searchParams: searchParams) => {
-  const username = process.env.OXYLABS_USERNAME;
-  const password = process.env.OXYLABS_PASSWORD;
-
   const url = new URL(searchParams.url);
-  Object.keys(searchParams).forEach((key) => {
-    if (key === "url" || key === "location") return;
-
-    const value = searchParams[key as keyof searchParams];
-
-    if (typeof value === "string") {
-      url.searchParams.append(key, value);
-    }
-  });
 
   console.log("scraping url: ", url.href);
 
-  const body = {
-    source: "universal",
-    url: url.href,
-    parse: true,
-    render: "html",
-    parsing_instructions: {
-      listings: {
-        _fns: [
-          {
-            _fn: "xpath",
-            _args: ["//div[@data-testid='property-card-container']"],
-          },
-        ],
-        _items: {
-          title: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [".//div[@data-testid='title']/text()"],
-              },
-            ],
-          },
-          description: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [
-                  ".//h4[contains(@class, 'abf093bdfe e8f7c070a7')]/text()",
-                ],
-              },
-            ],
-          },
-          booking_metadata: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [
-                  ".//div[contains(@class, 'c5ca594cb1 f19ed67e4b')]/div[contains(@class, 'abf093bdfe f45d8e4c32')]/text()",
-                ],
-              },
-            ],
-          },
-          link: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [".//a[contains(@class, 'a78ca197d0')]/@href"],
-              },
-            ],
-          },
-          price: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [
-                  ".//span[contains(@class, 'f6431b446c fbfd7c1165 e84eb96b1f')]/text()",
-                ],
-              },
-            ],
-          },
-          url: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [".//img/@src"],
-              },
-            ],
-          },
-          rating: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [".//div[@class='a3b8729ab1 d86cee9b25']/text()"],
-              },
-            ],
-          },
-          rating_word: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [
-                  ".//div[@class='a3b8729ab1 e6208ee469 cb2cbb3ccb']/text()",
-                ],
-              },
-            ],
-          },
-          rating_count: {
-            _fns: [
-              {
-                _fn: "xpath_one",
-                _args: [
-                  ".//div[@class='abf093bdfe f45d8e4c32 d935416c47']/text()",
-                ],
-              },
-            ],
-          },
-        },
-      },
-      total_listings: {
-        _fns: [
-          {
-            _fn: "xpath_one",
-            _args: [".//h1/text()"],
-          },
-        ],
-      },
-    },
-  };
+  const browser: Browser = await puppeteer.launch({ headless: false });
 
-  const response = await fetch("https://realtime.oxylabs.io/v1/queries", {
-    method: "POST",
-    body: JSON.stringify(body),
-    next: {
-      revalidate: 60 * 60,
-    },
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:
-        "Basic " + Buffer.from(`${username}:${password}`).toString("base64"),
-    },
-  })
-  .then((response) => response.json())
-  .then((data) => {
-    if (data.results.length === 0 ) return
-    const result: Result = data.results[0]
+  const page = await browser.newPage();
+  await page.goto(url.href);
+  
+  await wait(1000);
 
-    return result;
-  })
-  .catch((error) => console.error(error));
+  const listings = await page.evaluate(() => {
+    const listingPods = Array.from(document.querySelectorAll('[data-testid="property-card-container"]'));
+    
+    const data = listingPods.map((listing:any) => ({
+      title: listing.querySelector('div[data-testid="title"]')?.innerText || "Title not found",
+      location: listing.querySelector('span[data-testid="address"]')?.innerText || "Location not found",
+      rating_word: listing.querySelector('.a3b8729ab1.e6208ee469.cb2cbb3ccb')?.innerText || "Rating_word not found",
+      rating_count: listing.querySelector('.abf093bdfe.f45d8e4c32.d935416c47')?.innerText || "Rating_count not found",
+      link: listing.querySelector('.a78ca197d0')?.getAttribute('href') || "Link not found",
+      url: listing.querySelector('img')?.getAttribute('src') || "Image URL not found", 
+      rating: listing.querySelector('.a3b8729ab1.d86cee9b25')?.innerText.split(' ')[1] || "N/A",
+      booking_metadata: listing.querySelector('.c5ca594cb1.f19ed67e4b .abf093bdfe.f45d8e4c32')?.innerText || "Booking metadata not found",
+      price: listing.querySelector('div.abf093bdfe.f45d8e4c32 span.f6431b446c.fbfd7c1165.e84eb96b1f')?.innerText || "Price not found",
+      total_listings: listing.getElementsByTagName('h1')?.innerText || "Tatal listing count not found",
 
-  return response;
+     
+      
+    }));
+    return data;
+  });
+  console.log("Listings: ", listings);
+
+  await browser.close();
+  return listings
 };
